@@ -325,6 +325,7 @@ def _real_main(argv=None):
         'ap_password': opts.ap_password,
         'quiet': (opts.quiet or any_getting or any_printing),
         'no_warnings': opts.no_warnings,
+        'fragment_proxy':opts.fragment_proxy,
         'forceurl': opts.geturl,
         'forcetitle': opts.gettitle,
         'forceid': opts.getid,

@@ -208,6 +208,14 @@ def parseOpts(overrideArguments=None):
              'socks5://127.0.0.1:1080/. Pass in an empty string (--proxy "") '
              'for direct connection')
     network.add_option(
+        '--fragment-proxy', dest='fragment_proxy',
+        default=None, metavar='URL',
+        help='Proxy used to download fragment(for m3u8 file etc.).Same with --proxy if not set.'
+             '.Use the specified HTTP/HTTPS/SOCKS proxy. To enable '
+             'SOCKS proxy, specify a proper scheme. For example '
+             'socks5://127.0.0.1:1080/. Pass in an empty string (--proxy "") '
+             'for direct connection')
+    network.add_option(
         '--socket-timeout',
         dest='socket_timeout', type=float, default=None, metavar='SECONDS',
         help='Time to wait before giving up, in seconds')

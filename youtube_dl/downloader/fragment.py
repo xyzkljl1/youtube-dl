@@ -12,6 +12,7 @@ from ..utils import (
     sanitize_open,
     sanitized_Request,
 )
+from youtube_dl.downloader import external
 
 
 class HttpQuietDownloader(HttpFD):
@@ -133,18 +134,28 @@ class FragmentFD(FileDownloader):
         self.to_screen(
             '[%s] Total fragments: %s' % (self.FD_NAME, total_frags_str))
         self.report_destination(ctx['filename'])
-        dl = HttpQuietDownloader(
-            self.ydl,
-            {
-                'continuedl': True,
-                'quiet': True,
-                'noprogress': True,
-                'ratelimit': self.params.get('ratelimit'),
-                'retries': self.params.get('retries', 0),
-                'nopart': self.params.get('nopart', False),
-                'test': self.params.get('test', False),
-            }
-        )
+        external_downloader= self.params.get('external_downloader')
+        if external_downloader is not None:
+            frag_params=self.params.copy()
+            if frag_params.get('fragment_proxy') is not None:
+                frag_params['proxy']=frag_params.get('fragment_proxy')
+            if len(frag_params['proxy'])==0:
+                frag_params['proxy']=None
+            dl = external.get_external_downloader(external_downloader)(self.ydl, frag_params)
+        else:
+            dl = HttpQuietDownloader(
+                self.ydl,
+                {
+                    'continuedl': True,
+                    'quiet': True,
+                    'noprogress': True,
+                    'ratelimit': self.params.get('ratelimit'),
+                    'retries': self.params.get('retries', 0),
+                    'nopart': self.params.get('nopart', False),
+                    'test': self.params.get('test', False),
+                }
+            )
+
         tmpfilename = self.temp_name(ctx['filename'])
         open_mode = 'wb'
         resume_len = 0
