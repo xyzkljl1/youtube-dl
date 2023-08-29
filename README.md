@@ -591,6 +591,10 @@ The basic usage is not to set any template arguments when downloading a single f
  - `playlist_uploader` (string): Full name of the playlist uploader
  - `playlist_uploader_id` (string): Nickname or id of the playlist uploader
 
+Available for bilibili multi-page video:
+ - `sub_title`(string): page title
+ - `sub_index`(string): page index
+
 Available for the video that belongs to some logical chapter or section:
 
  - `chapter` (string): Name or title of the chapter the video belongs to
