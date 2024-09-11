@@ -1647,7 +1647,7 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
         except JSInterpreter.Exception as e:
             self.report_warning(
                 '%s (%s %s)' % (
-                    'Unable to decode n-parameter: download likely to be throttled',
+                    'Unable to decode n-parameter: expect download to be blocked or throttled',
                     error_to_compat_str(e),
                     traceback.format_exc()),
                 video_id=video_id)
@@ -1659,18 +1659,51 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
     def _extract_n_function_name(self, jscode):
         func_name, idx = self._search_regex(
             # new: (b=String.fromCharCode(110),c=a.get(b))&&c=nfunc[idx](c)
-            # old: .get("n"))&&(b=nfunc[idx](b)
-            # older: .get("n"))&&(b=nfunc(b)
+            # or:  (b="nn"[+a.D],c=a.get(b))&&(c=nfunc[idx](c)
+            # or:  (PL(a),b=a.j.n||null)&&(b=nfunc[idx](b)
+            # or:  (b="nn"[+a.D],vL(a),c=a.j[b]||null)&&(c=narray[idx](c),a.set(b,c),narray.length||nfunc("")
+            # old: (b=a.get("n"))&&(b=nfunc[idx](b)(?P<c>[a-z])\s*=\s*[a-z]\s*
+            # older: (b=a.get("n"))&&(b=nfunc(b)
             r'''(?x)
-                (?:\(\s*(?P<b>[a-z])\s*=\s*String\s*\.\s*fromCharCode\s*\(\s*110\s*\)\s*,(?P<c>[a-z])\s*=\s*[a-z]\s*)?
-                \.\s*get\s*\(\s*(?(b)(?P=b)|"n")(?:\s*\)){2}\s*&&\s*\(\s*(?(c)(?P=c)|b)\s*=\s*
-                (?P<nfunc>[a-zA-Z_$][\w$]*)(?:\s*\[(?P<idx>\d+)\])?\s*\(\s*[\w$]+\s*\)
-            ''', jscode, 'Initial JS player n function name', group=('nfunc', 'idx'))
+                \((?:[\w$()\s]+,)*?\s*      # (
+                (?P<b>[a-z])\s*=\s*         # b=
+                (?:
+                    (?:                     # expect ,c=a.get(b) (etc)
+                        String\s*\.\s*fromCharCode\s*\(\s*110\s*\)|
+                        "n+"\[\s*\+?s*[\w$.]+\s*]
+                    )\s*(?:,[\w$()\s]+(?=,))*|
+                       (?P<old>[\w$]+)      # a (old[er])
+                   )\s*
+                   (?(old)
+                                            # b.get("n")
+                       (?:\.\s*[\w$]+\s*|\[\s*[\w$]+\s*]\s*)*?
+                       (?:\.\s*n|\[\s*"n"\s*]|\.\s*get\s*\(\s*"n"\s*\))
+                       |                    # ,c=a.get(b)
+                       ,\s*(?P<c>[a-z])\s*=\s*[a-z]\s*
+                       (?:\.\s*[\w$]+\s*|\[\s*[\w$]+\s*]\s*)*?
+                       (?:\[\s*(?P=b)\s*]|\.\s*get\s*\(\s*(?P=b)\s*\))
+                   )
+                                            # interstitial junk
+                   \s*(?:\|\|\s*null\s*)?(?:\)\s*)?&&\s*(?:\(\s*)?
+               (?(c)(?P=c)|(?P=b))\s*=\s*   # [c|b]=
+                                            # nfunc|nfunc[idx]
+                   (?P<nfunc>[a-zA-Z_$][\w$]*)(?:\s*\[(?P<idx>\d+)\])?\s*\(\s*[\w$]+\s*\)
+            ''', jscode, 'Initial JS player n function name', group=('nfunc', 'idx'),
+            default=(None, None))
+        # thx bashonly: yt-dlp/yt-dlp/pull/10611
+        if not func_name:
+            self.report_warning('Falling back to generic n function search')
+            return self._search_regex(
+                r'''(?xs)
+                    (?:(?<=[^\w$])|^)       # instead of \b, which ignores $
+                    (?P<name>(?!\d)[a-zA-Z\d_$]+)\s*=\s*function\((?!\d)[a-zA-Z\d_$]+\)
+                    \s*\{(?:(?!};).)+?["']enhanced_except_
+                ''', jscode, 'Initial JS player n function name', group='name')
         if not idx:
             return func_name
 
         return self._parse_json(self._search_regex(
-            r'var {0}\s*=\s*(\[.+?\])\s*[,;]'.format(re.escape(func_name)), jscode,
+            r'var\s+{0}\s*=\s*(\[.+?\])\s*[,;]'.format(re.escape(func_name)), jscode,
             'Initial JS player n function list ({0}.{1})'.format(func_name, idx)),
             func_name, transform_source=js_to_json)[int(idx)]
 
